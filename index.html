@@ -33,8 +33,6 @@
   <div id="bar"></div>
   <iframe id="app" allow="geolocation; notifications"></iframe>
 </div>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
 <script>
 // ===== إعدادات يضعها المسؤول مرة وحدة =====
 var APP_URL = "https://script.google.com/macros/s/AKfycbzo7NYJOmZ7F9kDieKQeUSRO9HzrDnXywEx3waNFVo6jYe-ySCoxNQBea9NOBoSV_jrqw/exec";   // رابط البرنامج (ينتهي بـ /exec)
@@ -64,11 +62,15 @@ function showBar(html){ bar.innerHTML = html; bar.classList.add('show'); }
 function hideBar(){ bar.classList.remove('show'); }
 function sendToken(win){ if (fcmToken && win) try { win.postMessage({ type: 'att-fcm', token: fcmToken }, '*'); } catch (e) {} }
 
+function loadJs(u){ return new Promise(function(ok,no){ var x=document.createElement('script'); x.src=u; x.onload=ok; x.onerror=function(){ no(new Error('تعذّر تحميل ملف التنبيهات')); }; document.head.appendChild(x); }); }
+async function loadFb(){ if (window.firebase && firebase.messaging) return; await loadJs('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js'); await loadJs('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js'); }
+
 async function enablePush(){
   try {
     if (!('serviceWorker' in navigator) || !('Notification' in window)) { showBar('هذا المتصفح لا يدعم التنبيهات'); return; }
     var perm = await Notification.requestPermission();
     if (perm !== 'granted') { showBar('لم يتم السماح بالإشعارات — فعّليها من إعدادات الجوال للتطبيق'); return; }
+    await loadFb();
     firebase.initializeApp(CFG);
     var reg = await navigator.serviceWorker.register('firebase-messaging-sw.js');
     await navigator.serviceWorker.ready;
