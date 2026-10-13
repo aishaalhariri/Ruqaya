@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#7b5cc4">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="مدرسة رقية">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>مدرسة رقية</title>
+<style>
+  html,body{margin:0;height:100%;background:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Tahoma,sans-serif}
+  #bar{display:none;background:#fff4d6;border-bottom:1px solid #e0b34a;color:#6b4a00;padding:8px 12px;font-size:15px;line-height:1.6;text-align:center}
+  #bar button{font:inherit;background:#7b5cc4;color:#fff;border:0;border-radius:10px;padding:6px 14px;margin-inline-start:8px}
+  #bar.show{display:block}
+  iframe{border:0;width:100%;height:100%;display:block}
+  #wrap{display:flex;flex-direction:column;height:100%}
+  #wrap iframe{flex:1}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="bar"></div>
+  <iframe id="app" allow="geolocation; notifications"></iframe>
+</div>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
+<script>
+// ===== إعدادات يضعها المسؤول مرة وحدة =====
+var APP_URL = "https://script.google.com/macros/s/AKfycbzo7NYJOmZ7F9kDieKQeUSRO9HzrDnXywEx3waNFVo6jYe-ySCoxNQBea9NOBoSV_jrqw/exec";   // رابط البرنامج (ينتهي بـ /exec)
+var VAPID = "BJ2N47WVfgFybP-JUfPp6HomC3Tp_trMO44O6OTfr7nQbok9bdRpIAzcWvPyt5y_nmyXjit0p-aVFUQe46mvF0E";
+var CFG = {
+  apiKey: "AIzaSyDW8N9MnNNzU0zEb1lgYXCu5A5ksiuJ1hc", authDomain: "ruqaya-1206.firebaseapp.com", projectId: "ruqaya-1206",
+  storageBucket: "ruqaya-1206.firebasestorage.app", messagingSenderId: "639722837023", appId: "1:639722837023:web:0678641be8db8d165ef12a"
+};
+
+function lsGet(k){ try{ return localStorage.getItem(k) || ''; }catch(e){ return ''; } }
+function lsSet(k,v){ try{ localStorage.setItem(k, v); }catch(e){} }
+
+// الرمز الشخصي للمعلمة: يأتي من الرابط أول مرة ثم يُحفظ هنا (التخزين هنا يبقى لأن الصفحة مثبّتة)
+var qs = new URLSearchParams(location.search), tk = qs.get('t') || lsGet('att_t');
+if (qs.get('t')) { lsSet('att_t', qs.get('t')); try { history.replaceState(null, '', location.pathname); } catch (e) {} }
+if (qs.get('a') && /^https:\/\//.test(qs.get('a'))) lsSet('att_a', qs.get('a'));
+if (lsGet('att_a')) APP_URL = lsGet('att_a');
+document.getElementById('app').src = APP_URL + (tk ? (APP_URL.indexOf('?') > 0 ? '&' : '?') + 't=' + encodeURIComponent(tk) : '');
+
+var bar = document.getElementById('bar'), fcmToken = lsGet('att_fcm'), appWin = null, started = false;
+var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent), standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone;
+
+function showBar(html){ bar.innerHTML = html; bar.classList.add('show'); }
+function hideBar(){ bar.classList.remove('show'); }
+function sendToken(win){ if (fcmToken && win) try { win.postMessage({ type: 'att-fcm', token: fcmToken }, '*'); } catch (e) {} }
+
+async function enablePush(){
+  try {
+    if (!('serviceWorker' in navigator) || !('Notification' in window)) { showBar('هذا المتصفح لا يدعم التنبيهات'); return; }
+    var perm = await Notification.requestPermission();
+    if (perm !== 'granted') { showBar('لم يتم السماح بالإشعارات — فعّليها من إعدادات الجوال للتطبيق'); return; }
+    firebase.initializeApp(CFG);
+    var reg = await navigator.serviceWorker.register('firebase-messaging-sw.js');
+    await navigator.serviceWorker.ready;
+    var t = await firebase.messaging().getToken({ vapidKey: VAPID, serviceWorkerRegistration: reg });
+    if (!t) { showBar('تعذّر تفعيل التنبيهات'); return; }
+    fcmToken = t; lsSet('att_fcm', t); sendToken(appWin); hideBar();
+  } catch (e) { showBar('تعذّر تفعيل التنبيهات: ' + (e && e.message ? e.message : e)); }
+}
+
+var installEv = null;
+window.addEventListener('beforeinstallprompt', function (e) {
+  e.preventDefault(); installEv = e;
+  if (!standalone) { showBar('📲 أضيفي البرنامج إلى شاشة جهازك <button id="instBtn">إضافة إلى الجهاز</button>'); document.getElementById('instBtn').addEventListener('click', doInstall); }
+});
+window.addEventListener('appinstalled', function () { showBar('✓ تمت الإضافة — افتحي البرنامج من الأيقونة على شاشة جهازك ثم اسمحي بالإشعارات'); });
+function doInstall(){ if (!installEv) return; installEv.prompt(); installEv.userChoice.then(function () { installEv = null; setup(); }); }
+function setup(){
+  if (!standalone && !isIOS && !installEv) { showBar('📲 أضيفي البرنامج إلى شاشة جهازك: من قائمة المتصفح ⋮ اختاري «إضافة إلى الشاشة الرئيسية» أو «تثبيت التطبيق»'); return; }
+  if (isIOS && !standalone) { showBar('📲 لتصلك التنبيهات: من Safari اضغطي «مشاركة» ثم «إضافة إلى الشاشة الرئيسية»، وافتحي البرنامج من الأيقونة.'); return; }
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'granted') { if (!fcmToken) enablePush(); else { try { navigator.serviceWorker.register('firebase-messaging-sw.js'); } catch (e) {} } return; }
+  if (Notification.permission === 'denied') { showBar('الإشعارات مغلقة — فعّليها من إعدادات الجوال للتطبيق'); return; }
+  showBar('🔔 فعّلي التنبيهات لتصلك حتى والبرنامج مغلق <button id="pushBtn">تفعيل</button>');
+  document.getElementById('pushBtn').addEventListener('click', enablePush);
+}
+
+// البرنامج داخل الإطار يخبرنا باسم المعلمة ← نرد عليه برمز الجهاز ليسجّله
+window.addEventListener('message', function (e) {
+  var d = e.data || {};
+  if (d.type === 'att-hello') { appWin = e.source; try { e.source.postMessage({ type: 'att-wrap' }, '*'); } catch (x) {} sendToken(appWin); }
+});
+setup();
+</script>
+</body>
+</html>
