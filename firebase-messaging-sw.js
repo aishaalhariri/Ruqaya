@@ -11,17 +11,18 @@ firebase.initializeApp({
 });
 const messaging = firebase.messaging();
 // ⚠ آيفون: لازم كل تنبيه يطلع إشعار حتى لو البرنامج مفتوح — وإلا سفاري يوقف التنبيهات عن الجهاز بعد كم مرة
-// (كان الإشعار يطلع بس والبرنامج مسكّر، فصارت التنبيهات توصل داخل البرنامج بس)
+// الانصراف: سلسلة وحدة (tag ثابت) — كل تنبيه جديد يحل محل اللي قبله ويرن من جديد، بدل ما تتكدس وينكتم بعضها والشاشة مقفولة
 self.addEventListener('push', function (e) {
   let d = {};
   try { const p = e.data ? e.data.json() : {}; d = p.data || (p.notification ? { title: p.notification.title, body: p.notification.body } : {}); } catch (err) {}
+  const series = d.kind === 'dismiss' ? 'att-dismiss' : 'att-' + (d.id || Date.now());
   e.waitUntil(self.registration.showNotification('مدرسة رقية الإبتدائية للبنات', {
     body: (d.title ? d.title + '\n' : '') + (d.body || ''),
     icon: 'icon-192.png',
     badge: 'icon-192.png',
-    tag: 'att-' + (d.id || Date.now()),
+    tag: series,
     renotify: true,
-    requireInteraction: true,
+    requireInteraction: d.kind !== 'dismiss',
     vibrate: [250, 120, 250],
     data: { url: self.registration.scope }
   }));
